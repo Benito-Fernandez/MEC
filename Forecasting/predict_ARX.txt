@@ -1,0 +1,63 @@
+#include <iostream>
+#include <vector>
+#include <Eigen/Dense>
+#include <random>
+
+using namespace std;
+using namespace Eigen;
+
+struct ARXModel {
+    VectorXd coefficients;
+    double noiseVariance;
+};
+
+VectorXd predictARX(const ARXModel& model, const VectorXd& pastData, int nSteps) {
+    int order = model.coefficients.size();
+    VectorXd predictions(nSteps);
+    VectorXd data = pastData;
+
+    for (int i = 0; i < nSteps; ++i) {
+        double prediction = model.coefficients.dot(data.tail(order));
+        predictions[i] = prediction;
+        data.conservativeResize(data.size() + 1);
+        data[data.size() - 1] = prediction;
+    }
+
+    return predictions;
+}
+
+pair<VectorXd, VectorXd> computeConfidenceBounds(const VectorXd& predictions, double noiseVariance, double confidenceLevel) {
+    int nSteps = predictions.size();
+    VectorXd lowerBounds(nSteps);
+    VectorXd upperBounds(nSteps);
+    double z = 1.96; // For 95% confidence interval
+
+    for (int i = 0; i < nSteps; ++i) {
+        double margin = z * sqrt(noiseVariance);
+        lowerBounds[i] = predictions[i] - margin;
+        upperBounds[i] = predictions[i] + margin;
+    }
+
+    return {lowerBounds, upperBounds};
+}
+
+int main() {
+    // Example data
+    VectorXd pastData(5);
+    pastData << 1.0, 2.0, 3.0, 4.0, 5.0;
+
+    ARXModel model;
+    model.coefficients = VectorXd(2);
+    model.coefficients << 0.5, 0.3;
+    model.noiseVariance = 0.1;
+
+    int nSteps = 10;
+    VectorXd predictions = predictARX(model, pastData, nSteps);
+    auto [lowerBounds, upperBounds] = computeConfidenceBounds(predictions, model.noiseVariance, 0.95);
+
+    cout << "Predictions: " << predictions.transpose() << endl;
+    cout << "Lower Bounds: " << lowerBounds.transpose() << endl;
+    cout << "Upper Bounds: " << upperBounds.transpose() << endl;
+
+    return 0;
+}

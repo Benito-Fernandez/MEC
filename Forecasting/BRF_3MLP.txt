@@ -1,0 +1,98 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <random>
+
+using namespace std;
+
+class MLP {
+public:
+    MLP(int inputDim, int hiddenDim, int outputDim);
+    vector<double> forward(const vector<double>& input);
+    double costFunction(const vector<double>& output, const vector<double>& target);
+
+private:
+    vector<vector<double>> weights1;
+    vector<vector<double>> weights2;
+    vector<double> tanh(const vector<double>& x);
+    vector<double> dot(const vector<vector<double>>& matrix, const vector<double>& vec);
+};
+
+MLP::MLP(int inputDim, int hiddenDim, int outputDim) {
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_real_distribution<> dis(-1.0, 1.0);
+
+    weights1.resize(hiddenDim, vector<double>(inputDim));
+    weights2.resize(outputDim, vector<double>(hiddenDim));
+
+    for (auto& row : weights1) {
+        for (auto& val : row) {
+            val = dis(gen);
+        }
+    }
+
+    for (auto& row : weights2) {
+        for (auto& val : row) {
+            val = dis(gen);
+        }
+    }
+}
+
+vector<double> MLP::forward(const vector<double>& input) {
+    vector<double> hidden = tanh(dot(weights1, input));
+    vector<double> output = dot(weights2, hidden);
+    return output;
+}
+
+double MLP::costFunction(const vector<double>& output, const vector<double>& target) {
+    double cost = 0.0;
+    for (size_t i = 0; i < output.size(); ++i) {
+        double e = output[i] - target[i];
+        cost += log(cosh(e));
+    }
+    return cost;
+}
+
+vector<double> MLP::tanh(const vector<double>& x) {
+    vector<double> result(x.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+        result[i] = std::tanh(x[i]);
+    }
+    return result;
+}
+
+vector<double> MLP::dot(const vector<vector<double>>& matrix, const vector<double>& vec) {
+    vector<double> result(matrix.size());
+    for (size_t i = 0; i < matrix.size(); ++i) {
+        result[i] = 0.0;
+        for (size_t j = 0; j < vec.size(); ++j) {
+            result[i] += matrix[i][j] * vec[j];
+        }
+    }
+    return result;
+}
+
+int main() {
+    int inputDim = 3;
+    int hiddenDim = 5;
+    int outputDim = 2;
+
+    MLP mlp(inputDim, hiddenDim, outputDim);
+
+    vector<double> input = {1.0, 2.0, 3.0};
+    vector<double> target = {0.5, -0.5};
+
+    vector<double> output = mlp.forward(input);
+    double cost = mlp.costFunction(output, target);
+
+    cout << "Output: ";
+    for (const auto& val : output) {
+        cout << val << " ";
+    }
+    cout << endl;
+
+    cout << "Cost: " << cost << endl;
+
+    return 0;
+}

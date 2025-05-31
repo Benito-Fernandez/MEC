@@ -1,0 +1,51 @@
+#include <iostream>
+#include <vector>
+#include <Eigen/Dense>
+#include <random>
+
+using namespace std;
+using namespace Eigen;
+
+struct ARMAX {
+    VectorXd arCoefficients;
+    VectorXd maCoefficients;
+    VectorXd xCoefficients;
+    double noiseVariance;
+};
+
+VectorXd predictARMAX(const ARMAX& model, const VectorXd& pastData, const VectorXd& pastErrors, const VectorXd& exogenousData, int nSteps) {
+    int arOrder = model.arCoefficients.size();
+    int maOrder = model.maCoefficients.size();
+    int xOrder = model.xCoefficients.size();
+    VectorXd predictions(nSteps);
+    VectorXd data = pastData;
+    VectorXd errors = pastErrors;
+    VectorXd exog = exogenousData;
+
+    for (int i = 0; i < nSteps; ++i) {
+        double prediction = model.arCoefficients.dot(data.tail(arOrder)) + model.maCoefficients.dot(errors.tail(maOrder)) + model.xCoefficients.dot(exog.tail(xOrder));
+        predictions[i] = prediction;
+        data.conservativeResize(data.size() + 1);
+        data[data.size() - 1] = prediction;
+        errors.conservativeResize(errors.size() + 1);
+        errors[errors.size() - 1] = 0; // Assuming zero error for future predictions
+        exog.conservativeResize(exog.size() + 1);
+        exog[exog.size() - 1] = 0; // Assuming zero exogenous input for future predictions
+    }
+
+    return predictions;
+}
+
+pair<VectorXd, VectorXd> computeConfidenceBounds(const VectorXd& predictions, double noiseVariance, double confidenceLevel) {
+    int nSteps = predictions.size();
+    VectorXd lowerBounds(nSteps);
+    VectorXd upperBounds(nSteps);
+    double z = 1.96; // For 95% confidence interval
+
+    for (int i = 0; i < nSteps; ++i) {
+        double margin = z * sqrt(noiseVariance);
+        lowerBounds[i] = predictions[i] - margin;
+        upperBounds[i] = predictions[i] + margin;
+    }
+
+    return {lowerBounds, upperBounds}

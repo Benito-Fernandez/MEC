@@ -1,0 +1,59 @@
+#include <iostream>
+#include <vector>
+#include <Eigen/Dense>
+#include <random>
+
+using namespace std;
+using namespace Eigen;
+
+struct ARMA {
+    VectorXd arCoefficients;
+    VectorXd maCoefficients;
+    double noiseVariance;
+};
+
+VectorXd predictARMA(const ARMA& model, const VectorXd& pastData, const VectorXd& pastErrors, int nSteps) {
+    int arOrder = model.arCoefficients.size();
+    int maOrder = model.maCoefficients.size();
+    VectorXd predictions(nSteps);
+    VectorXd data = pastData;
+    VectorXd errors = pastErrors;
+
+    for (int i = 0; i < nSteps; ++i) {
+        double prediction = model.arCoefficients.dot(data.tail(arOrder)) + model.maCoefficients.dot(errors.tail(maOrder));
+        predictions[i] = prediction;
+        data.conservativeResize(data.size() + 1);
+        data[data.size() - 1] = prediction;
+        errors.conservativeResize(errors.size() + 1);
+        errors[errors.size() - 1] = 0; // Assuming zero error for future predictions
+    }
+
+    return predictions;
+}
+
+pair<VectorXd, VectorXd> computeConfidenceBounds(const VectorXd& predictions, double noiseVariance, double confidenceLevel) {
+    int nSteps = predictions.size();
+    VectorXd lowerBounds(nSteps);
+    VectorXd upperBounds(nSteps);
+    double z = 1.96; // For 95% confidence interval
+
+    for (int i = 0; i < nSteps; ++i) {
+        double margin = z * sqrt(noiseVariance);
+        lowerBounds[i] = predictions[i] - margin;
+        upperBounds[i] = predictions[i] + margin;
+    }
+
+    return {lowerBounds, upperBounds};
+}
+
+int main() {
+    // Example data
+    VectorXd pastData(5);
+    pastData << 1.0, 2.0, 3.0, 4.0, 5.0;
+
+    VectorXd pastErrors(5);
+    pastErrors << 0.1, -0.2, 0.3, -0.1, 0.2;
+
+    ARMA model;
+    model.arCoefficients = VectorXd(2);
+    model.arCoefficients

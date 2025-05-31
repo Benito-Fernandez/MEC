@@ -1,0 +1,110 @@
+/*
+ Novelty Filter:
+ (c) 2019-2025 Benito R. Fernandez
+ benito.fernandez@gmail.com
+ +1 (512) 567-8230
+
+ A Novelty Filter (NF) aims to be able to detect whether a certain signal is “new” (novel) 
+ or different from historic information.  
+ As such, we need to have some previous (historical) data about the signal, or
+ the filter will start detecting any new signal as “new” and 
+ when enough data samples are measured in a certain region, that signal is no longer consider novel.
+ 
+ For diagnosis, each time a signal is considered novel by the NF, 
+ we need to determined the label of the region.
+ For example, we may have three basic regions: {unknown, healthy, faulty}.
+ Additional granulation for the set might be created by the user in the future.
+ Instead of a “crisp” label (one of a set), we could have a fuzzy membership  in each of the bins.
+ So, for example, any new data point in a region never visited, 
+ will have as default the tuple condition = (1.0, 0.0, 0.0).
+
+ Another possibility is that as we collect information, we might want to establish a PDF
+ (Probability Density Function) of a given region (bins in statistics, or centers in an RBF).
+ The simplest method is to add to a bin (region around a center) the number of data points 
+ in the neighborhood of the center and divide the whole array of sums, PDF,
+ by the total number of points collected.
+ Here we run the danger of annihilating some region, where few data points are collected.
+ This PDF should never be consider the NF.
+
+ The NF should return a binary (or logic) number: 1 if it is new; 0 if not.
+ The bins could be multidimensional and the sizes need not be uniform.
+
+ Co-Pilot code:
+ */
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+
+using namespace std;
+
+struct Point {
+    vector<double> coordinates;
+};
+
+double euclideanDistance(const Point& p1, const Point& p2) {
+    double sum = 0.0;
+    for (size_t i = 0; i < p1.coordinates.size(); ++i) {
+        sum += pow(p1.coordinates[i] - p2.coordinates[i], 2);
+    }
+    return sqrt(sum);
+}
+
+vector<Point> generateCenters(const vector<Point>& dataSet, int nCenters) {
+    vector<Point> centers;
+    size_t dimensions = dataSet[0].coordinates.size();
+    vector<double> minVals(dimensions, numeric_limits<double>::max());
+    vector<double> maxVals(dimensions, numeric_limits<double>::lowest());
+
+    // Find the min and max values for each dimension
+    for (const auto& point : dataSet) {
+        for (size_t i = 0; i < dimensions; ++i) {
+            minVals[i] = min(minVals[i], point.coordinates[i]);
+            maxVals[i] = max(maxVals[i], point.coordinates[i]);
+        }
+    }
+
+    // Generate centers
+    for (int i = 0; i < nCenters; ++i) {
+        Point center;
+        for (size_t j = 0; j < dimensions; ++j) {
+            double step = (maxVals[j] - minVals[j]) / (nCenters - 1);
+            center.coordinates.push_back(minVals[j] + i * step);
+        }
+        centers.push_back(center);
+    }
+
+    return centers;
+}
+
+bool isNovel(const Point& newPoint, const vector<Point>& centers, double threshold) {
+    for (const auto& center : centers) {
+        if (euclideanDistance(newPoint, center) < threshold) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int main() {
+    vector<Point> dataSet = {
+        {{1.0, 2.0, 3.0}},
+        {{4.0, 5.0, 6.0}},
+        {{7.0, 8.0, 9.0}}
+    };
+
+    int nCenters = 3;
+    double threshold = 5.0;
+
+    vector<Point> centers = generateCenters(dataSet, nCenters);
+
+    Point newPoint = {{10.0, 11.0, 12.0}};
+
+    if (isNovel(newPoint, centers, threshold)) {
+        cout << "The new point is novel." << endl;
+    } else {
+        cout << "The new point is not novel." << endl;
+    }
+
+    return 0;
+}

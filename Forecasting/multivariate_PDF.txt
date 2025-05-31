@@ -1,0 +1,93 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <Eigen/Dense>
+
+using namespace std;
+using namespace Eigen;
+
+double multivariate_normal_pdf(const VectorXd& x, const VectorXd& mean, const MatrixXd& cov) {
+    int n = x.size();
+    double det = cov.determinant();
+    double norm_const = 1.0 / (pow(2 * M_PI, n / 2.0) * sqrt(det));
+    VectorXd diff = x - mean;
+    double exponent = -0.5 * diff.transpose() * cov.inverse() * diff;
+    return norm_const * exp(exponent);
+}
+
+int main() {
+    // Example data
+    VectorXd mean(2);
+    mean << 0, 0;
+    MatrixXd cov(2, 2);
+    cov << 1, 0.5,
+           0.5, 1;
+
+    vector<VectorXd> points = {VectorXd::Random(2), VectorXd::Random(2), VectorXd::Random(2)};
+
+    for (const auto& point : points) {
+        double pdf_value = multivariate_normal_pdf(point, mean, cov);
+        cout << "PDF value at point " << point.transpose() << " is " << pdf_value << endl;
+    }
+
+    return 0;
+}
+
+/*
+----------------------------------------------------------------------------------------------------
+Here's a C++ code snippet to determine the Probability Density Function (PDF) from multidimensional experimental data, allowing for different means and standard deviations for each dimension and supporting multi-modal distributions. This example uses a Gaussian Mixture Model (GMM) approach: 
+----------------------------------------------------------------------------------------------------
+ */
+
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <Eigen/Dense>
+
+using namespace std;
+using namespace Eigen;
+
+struct GaussianComponent {
+    VectorXd mean;
+    MatrixXd covariance;
+    double weight;
+};
+
+double gaussianPDF(const VectorXd& x, const VectorXd& mean, const MatrixXd& covariance) {
+    int n = x.size();
+    double det = covariance.determinant();
+    double norm_const = 1.0 / (pow(2 * M_PI, n / 2.0) * sqrt(det));
+    VectorXd diff = x - mean;
+    double exponent = -0.5 * diff.transpose() * covariance.inverse() * diff;
+    return norm_const * exp(exponent);
+}
+
+double gmmPDF(const vector<GaussianComponent>& components, const VectorXd& point) {
+    double pdf = 0.0;
+    for (const auto& component : components) {
+        pdf += component.weight * gaussianPDF(point, component.mean, component.covariance);
+    }
+    return pdf;
+}
+
+int main() {
+    // Example data
+    vector<GaussianComponent> components = {
+        {VectorXd::Random(3), MatrixXd::Identity(3, 3), 0.5},
+        {VectorXd::Random(3), MatrixXd::Identity(3, 3), 0.5}
+    };
+
+    VectorXd point = VectorXd::Random(3);
+
+    double pdfValue = gmmPDF(components, point);
+    cout << "PDF value at point " << point.transpose() << " is " << pdfValue << endl;
+
+    return 0;
+}
+
+/*
+----------------------------------------------------------------------------------------------------
+This code defines a GaussianComponent structure to represent each Gaussian component in the mixture model, with a mean vector, covariance matrix, and weight. The gaussianPDF function calculates the PDF value for a given point, mean, and covariance matrix. The gmmPDF function calculates the PDF value for a given point using the Gaussian Mixture Model (GMM) approach. The main function demonstrates how to use these functions with example data. 
+----------------------------------------------------------------------------------------------------
+ */
+

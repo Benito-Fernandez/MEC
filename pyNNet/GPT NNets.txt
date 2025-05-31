@@ -1,0 +1,1027 @@
+Generic NNet
+
+
+OK.  Now that we have established DoubleIndexedArray class, let's call it class Weights, and let's create a NNet class that uses those weights.  The network will have nLayers, with an inputLayer, outputLayer and hiddenLayers.  to create the network, you will pass those: myNN = NNet(n_inputs=2, n_hidden=[2,4,3],n_outputs=1) or myNN = NN(nNodes=[2,2,4,3,1]).  Each layer has biases, and has associated an activationFunction form a set of {'linear', 'tanh', 'sigmoid', 'softMax', etc.}, the default being 'tanh' for hidden layers and 'linear' for input and output layers. The default topology is an MLP (multilayer perceptron) where all layers are connected to the next layer, from input to hidden, to output.  If there is a different topology, it will be specified at creation or later by adding, modifying, deleting connections in the Connectivity matrix.  For example, if all layer are connected FF and layer 3 is connected to layer 1, the connectivity matrix would be Connectivity = [[0, 1, 0, 0, 0],[0, 0, 1, 0, 0], [1, 0, 0, 1, 0], [0, 0, 0, 0, 1], [ 0, 0, 0, 0, 0]]. Training and testing data would be read from CSV files with default names 'trainingData.csv' and 'testingData.csv'.  The cost or loss function will compare the output layer outputs with the target values from the trainingData.csv.  The resulting error = target-output will be used to compute the loss function, from a se to functions {SSE(error[k]) (sum of squared errors, max(error[k]), norm(error[k]), logCosh(error[k]), etc.} the default being SSE.  The training set has nDataPoints and the network will be trained for nEpochs epochs.  Th learning will update the weights (and biases) each epoch using and updateWights function using one of several update weights methods, like {gradient descent, gradient descent with momentum, levenberg-marquart, etc.}.  The weights (and biases) with the network topology (connectivity)  can be saved in a readable form to a file and can be loaded back for deployment or continuing training.  During training the error at each epoch will be stored in order to plot its evolution during training that will be shown in a plot.  If the user wants, a printout every n_display epochs of the epoch and the loss will be displayed.
+GPT-4o Mini
+Let's build the `Weights` and `NNet` classes according to the specifications you've provided. The `Weights` class will be based on the `DoubleIndexedArray` class to handle the weight matrices, while the `NNet` class will manage the neural network layers, including their biases, activation functions, training, and connectivity. 
+Here's a comprehensive implementation:
+Weights Class
+
+import numpy as np
+import csv
+
+class Weights:
+    def __init__(self):
+        self.data = {}
+
+    def __call__(self, index1, index2):
+        return np.array(self.data.get((index1, index2), None))
+
+    def set_weights(self, index1, index2, value):
+        self.data[(index1, index2)] = value
+
+    def remove_weights(self, index1, index2):
+        try:
+            del self.data[(index1, index2)]
+        except KeyError:
+            raise KeyError(f"No existing weights for indices ({index1}, {index2}) to remove.")
+
+    def print_weights(self):
+        print("Current weights:")
+        for (index1, index2), value in self.data.items():
+            print(f"From layer {index1} to layer {index2}: {value}")
+
+    def load_from_csv(self, filename):
+        with open(filename, 'r') as file:
+            reader = csv.reader(file)
+            self.data = { (int(row[0]), int(row[1])): np.array([float(x) for x in row[2:]], dtype=float) for row in reader }
+
+    def save_to_csv(self, filename):
+        with open(filename, 'w') as file:
+            writer = csv.writer(file)
+            for (index1, index2), value in self.data.items():
+                writer.writerow([index1, index2] + value.tolist())
+NNet Class
+
+class NNet:
+    def __init__(self, n_inputs=None, n_hidden=None, n_outputs=None, nNodes=None, connectivity=None,
+                 activation_functions=None, training_data_file='trainingData.csv', testing_data_file='testingData.csv'):
+        if nNodes is not None:
+            self.n_layers = len(nNodes)
+            self.layers = nNodes
+            self.n_inputs = nNodes[0]
+            self.n_outputs = nNodes[-1]
+        else:
+            self.layers = [n_inputs] + n_hidden + [n_outputs]
+            self.n_layers = len(self.layers)
+
+        self.activation_functions = activation_functions or ['linear' if i == 0 or i == self.n_layers - 1 else 'tanh' for i in range(self.n_layers)]
+        self.weights = Weights()
+
+        # Initialize connectivity matrix
+        self.connectivity = self.initialize_connectivity(connectivity)
+        self.initialize_weights()
+
+        # Load training and testing data
+        self.training_data = self.load_data(training_data_file)
+        self.testing_data = self.load_data(testing_data_file)
+
+    def initialize_connectivity(self, connectivity):
+        if connectivity is None:
+            conn = np.zeros((self.n_layers, self.n_layers))
+            for i in range(self.n_layers - 1):
+                conn[i][i + 1] = 1  # Connect to next layer
+            return conn
+        return np.array(connectivity)
+
+    def initialize_weights(self):
+        for i in range(self.n_layers - 1):
+            for j in range(self.n_layers):
+                if self.connectivity[i, j] == 1:
+                    weight_matrix = np.random.rand(self.layers[i + 1], self.layers[i])  # Random weights
+                    self.weights.set_weights(i, i + 1, weight_matrix)
+
+    def load_data(self, filename):
+        with open(filename, 'r') as file:
+            reader = csv.reader(file)
+            return np.array([row for row in reader], dtype=float)
+
+    def save_weights(self, filename):
+        self.weights.save_to_csv(filename)
+
+    def load_weights(self, filename):
+        self.weights.load_from_csv(filename)
+
+    def train(self, n_epochs=1000, learning_rate=0.01, display_epoch=100):
+        for epoch in range(n_epochs):
+            # Create a forward pass and backpropagation for training logic
+            # Here you'd compute the outputs with the current weights, calculate the loss, and update
+            # ...
+
+            if (epoch + 1) % display_epoch == 0:
+                print(f'Epoch {epoch + 1}/{n_epochs}: Loss = ...')  # Replace with actual loss calculation
+
+    def predict(self, input_data):
+        # Method for prediction based on the trained weights
+        # Here you would implement forward propagation based on current weights
+        pass
+
+    def __repr__(self):
+        return f"NNet(n_layers={self.n_layers}, layers={self.layers}, activation_functions={self.activation_functions})"
+Key Features of the Implementation:
+
+
+Weights Class: 
+
+Handles storing weights, including loading from and saving to CSV.
+
+Allows for setting, removing, and displaying weights.
+
+
+
+NNet Class: 
+
+Initializes layers either from n_inputs, n_hidden, and n_outputs or from a flat list nNodes.
+
+Initializes weights randomly between connected layers.
+
+Supports learning using the training data and weights updating (learning logic must be implemented).
+
+
+
+Training and Testing:
+
+Loads training and testing data from CSV files.
+
+Offers placeholders for training logic, prediction, and loss calculation.
+
+
+
+Connectivity Matrix:
+
+Initializes a default connectivity matrix for a fully connected feed-forward MLP.
+
+Can be customized later.
+
+
+
+Activation Functions:
+
+Default activation functions are set for each layer but can be customized.
+
+
+
+
+Next Steps:
+
+
+Complete the training logic including forward propagation and backpropagation.
+
+Implement various loss functions and weight update strategies.
+
+Add plotting capabilities, possibly using libraries such as matplotlib to visualize loss over epochs.
+
+Implement data preprocessing if necessary, especially if using CSVs directly from datasets.
+
+
+This structure provides a solid foundation for your neural network implementation. You can extend and modify it further as needed to fit specific learning tasks or connect it with existing libraries.
+
+------------------------------------------------------
+write an example code to use the network with data from a y = f(x) = sin(2*x-1)*cos(x)+n, where n is Gaussian noise with zero mean and 0.1 std_dev.  The training set will have 1,000 points uniformly random picked between o and 2*pi.  The testing set is a series of random steps in the dame range as the training set.
+------------------------------------------------------
+
+GPT-4o Mini
+------------------------------------------------------
+To create a complete example that shows how to use the `NNet` class with a dataset generated from the function \( y = f(x) = \sin(2x - 1) \cdot \cos(x) + n \), where \( n \) is Gaussian noise, we will follow these steps:
+
+Generate the training and testing datasets.
+
+Initialize the neural network with an appropriate architecture.
+
+Train the network on the training data.
+
+Predict using the trained network on testing data.
+
+Optionally, visualize the results.
+
+
+Step-by-Step Code Example
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Step 1: Generate the dataset
+def generate_data(n_points=1000, noise_std=0.1):
+    # Generate random x values
+    x_train = np.random.uniform(0, 2 * np.pi, n_points)
+    # Compute y values
+    y_train = np.sin(2 * x_train - 1) * np.cos(x_train) + np.random.normal(0, noise_std, n_points)
+    
+    # Prepare the data in the format expected by the network
+    return x_train.reshape(-1, 1), y_train.reshape(-1, 1)  # Reshape for compatibility
+
+# Generate training and testing data
+x_train, y_train = generate_data()
+x_test, y_test = generate_data(n_points=100)  # Smaller set for testing
+
+# Step 2: Initialize the neural network
+n_inputs = 1
+n_hidden = [5, 5]  # Example hidden layers
+n_outputs = 1
+
+myNN = NNet(n_inputs=n_inputs, n_hidden=n_hidden, n_outputs=n_outputs)
+
+# Step 3: Train the network (this part assumes a proper `train` method is implemented)
+n_epochs = 1000
+learning_rate = 0.01
+myNN.train(n_epochs=n_epochs, learning_rate=learning_rate, display_epoch=100)
+
+# Step 4: Predict using the trained network
+predictions = []
+for x in x_test:
+    pred = myNN.predict(x.reshape(1, -1))  # Make it 2D for input compatibility
+    predictions.append(pred[0][0])  # Obtain the scalar output
+
+# Convert predictions to a NumPy array for easy plotting
+predictions = np.array(predictions)
+
+# Step 5: Visualize the results
+plt.figure(figsize=(12, 6))
+plt.scatter(x_train, y_train, label='Training Data', color='blue', alpha=0.5)
+plt.scatter(x_test, y_test, label='Testing Data', color='red', alpha=0.5)
+plt.scatter(x_test, predictions, label='Predictions', color='green', alpha=0.7)
+plt.title('Neural Network Predictions vs Actual Data')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.show()
+What to Note:
+
+
+Data Generation:
+
+We generate random values of ( x ) within the range ( [0, 2\pi] ).
+
+The target ( y ) values are computed using the provided function with added Gaussian noise.
+
+
+
+Initialization:
+
+The NNet is initialized with a specified architecture. In this example, we've chosen two hidden layers with 5 neurons each.
+
+You can alter the number of layers and neurons based on your specific needs.
+
+
+
+Training:
+
+The train method placeholder must have been properly implemented in the NNet class for this to work as expected.
+
+It uses the training data, and you can print the loss periodically.
+
+
+
+Prediction:
+
+After training, we predict values for the test set, reshaping the input ( x ) to ensure dimensionality compatibility.
+
+
+
+Visualization:
+
+The results, including training points, testing points, and predictions from the neural network, are displayed using Matplotlib.
+
+
+
+
+Required function implementations
+
+Ensure that the `NNet` class has the following functional implementations to work seamlessly:
+
+A correctly defined train method that includes forward and backward propagation.
+
+An efficient predict method that utilizes the trained weights to generate outputs for new inputs.
+
+
+This example provides a practical implementation of using the implemented `NNet` class to train on a dataset generated from a defined mathematical function while incorporating some noise, showcasing how the neural network can subsequently predict outputs.
+
+----------------------------------------------------------------------
+
+We need to add  functions to support the training, basically forward(x, y), compute_cost(yNet, target),  backward(x, error), and update_weights(). 
+
+The forward function, forward(x, y), takes input x, apply to the input layer and propagate through the connectivity matrix to all nodes until it reaches the output layer.  To this end, we will assume that ant feedforward connection is instant, but any feedback (FB) connection (sink layer is equal or less than the source layer) is delayed (to the previous value in the training set).  To that effect, we need to add to each neuron a 'state' variable that will hold the previous value of the output.  That state variable then will be used in the forward function when FB connections exist.  
+
+The compute_cost(yNet, target) will take the network output, yNet, from the ouput layer and the target value from the training set, and compute the error (error(k)=target(k)-yNet(k)), for epoch k, and with it, the cost(k) (loss(k)) for each epoch, that eventually will contribute to the total_cost.  The cost for each epoch is selectable from a set, for example {SE -square L(k) = error(k)**2, abs(error(k)), logcosh = log(cosh(error(k))), etc.}.  The total_cost, could the the sum, as in SSE (sum of squared errors), max(cost(k)), norm([cost[k]]), etc. 
+
+The compute_cost will also generate the gradient for each error with respect to the network output, of each epoch.  The backward(x, error) will take the compute_cost-generated gradient and propagate backward through the sources connections starting in the output layer, through the hidden layers, until you get to the networks input.  This also include the gradient of the error(k) with respect to input x(k).  We need to pay attention to FB connections, where backpropagating the gradient needs to account for the 'loop' of backpropagation through time (BTT), where the total gradient at any given epoch has two components, the 'instantaneous' gradient for the current epoch and the second term is the 'carried' gradient from previous cumulative gradient d_cost/d_state(k)[total] = d_cost/d_state(k)[instant] + W*d_cost/d_state(k-1)[carried].
+
+Finally, the update_weights() takes the total_gradient, d_total_cost/d_weight and probably previous values (like for momentum) and updates the weights following an update rule, dW = update_fn(d_total_cost/dW).  The update rule could be a class of its own, that is extendable, and have some predefined options, like {gradient descent (GD), GD with momentum, dW = -lr*d_total_cost/dW*tanh(total_cost), etc.}
+------------------------------------------------------
+
+GPT-4o Mini
+------------------------------------------------------
+Below is an extended version of your code that now includes four new functions to support training: a
+- forward(x) method that propagates an input through the network while handling both instantaneous feed‐forward and delayed feedback connections (using each neuron’s “state” as well as its stored previous value),
+- compute_cost(yNet, target) to compute an error (and selectable cost function) plus the gradient of the cost with respect to the network output,
+- backward(grad_output) which backpropagates that gradient through the network (and—in the case of feedback connections—adds a carried gradient from the previous epoch),
+- update_weights() that applies an update rule (here supporting standard gradient descent as well as an option for momentum).
+In order to accommodate delayed feedback, each neuron (per layer) is given a “state” variable that is updated with the current activation but also stored (as “prev_states”) so that any connection coming “backward” (i.e. where the destination layer is less than or equal to the source layer) will use the previous activation. For backpropagation through time (BPTT), a dictionary of carried gradients is maintained and injected into the backward pass.
+Below is the complete code (including the improved Weights class) along with inline comments that explain each step. You can adapt the choice of cost function and optimizer by changing parameters or extending the corresponding sections.
+
+import numpy as np
+import csv
+
+class Weights:
+    def __init__(self) -> None:
+        self.data = {}
+
+    def __getitem__(self, indices: tuple[int, int]) -> np.ndarray:
+        """Enable dictionary-like access: weights[index1, index2]."""
+        value = self.data.get(indices, None)
+        if value is None:
+            raise KeyError(f"No weights found for indices {indices}.")
+        return value
+
+    def __call__(self, index1: int, index2: int) -> np.ndarray:
+        """Allow callable access: weights(index1, index2)."""
+        value = self.data.get((index1, index2), None)
+        if value is None:
+            raise KeyError(f"No weights found for indices ({index1}, {index2}).")
+        return value
+
+    def set_weights(self, index1: int, index2: int, value: np.ndarray) -> None:
+        self.data[(index1, index2)] = value
+
+    def remove_weights(self, index1: int, index2: int) -> None:
+        try:
+            del self.data[(index1, index2)]
+        except KeyError:
+            raise KeyError(f"No existing weights for indices ({index1}, {index2}) to remove.")
+
+    def print_weights(self) -> None:
+        print("Current weights:")
+        for (index1, index2), value in self.data.items():
+            print(f"From layer {index1} to layer {index2}: {value}")
+
+    def load_from_csv(self, filename: str) -> None:
+        """
+        Expected CSV format:
+            index1,index2,value1,value2,...
+        """
+        try:
+            with open(filename, 'r') as file:
+                reader = csv.reader(file)
+                self.data = {
+                    (int(row[0]), int(row[1])): np.array([float(x) for x in row[2:]], dtype=float)
+                    for row in reader if row and len(row) >= 2
+                }
+        except Exception as e:
+            raise ValueError(f"Error loading CSV file '{filename}': {e}")
+
+    def save_to_csv(self, filename: str) -> None:
+        try:
+            with open(filename, 'w', newline='') as file:
+                writer = csv.writer(file)
+                for (index1, index2), value in self.data.items():
+                    row = [index1, index2] + value.tolist()
+                    writer.writerow(row)
+        except Exception as e:
+            raise ValueError(f"Error saving CSV file '{filename}': {e}")
+
+
+class NNet:
+    def __init__(self, n_inputs: int = None, n_hidden: list[int] = None, n_outputs: int = None,
+                 nNodes: list[int] = None, connectivity=None,
+                 activation_functions: list[str] = None,
+                 training_data_file: str = 'trainingData.csv', testing_data_file: str = 'testingData.csv',
+                 learning_rate: float = 0.01, optimizer: str = "gd", momentum: float = 0.9) -> None:
+        # Determine network architecture based on provided parameters
+        if nNodes is not None:
+            self.layers = nNodes
+            self.n_layers = len(nNodes)
+            self.n_inputs = nNodes[0]
+            self.n_outputs = nNodes[-1]
+        else:
+            self.layers = [n_inputs] + n_hidden + [n_outputs]
+            self.n_layers = len(self.layers)
+
+        # Establish activation functions: default is linear for input and output, tanh for hidden layers.
+        if activation_functions is not None:
+            self.activation_functions = activation_functions
+        else:
+            self.activation_functions = [
+                'linear' if i == 0 or i == self.n_layers - 1 else 'tanh'
+                for i in range(self.n_layers)
+            ]
+
+        self.weights = Weights()
+
+        # Initialize connectivity matrix: default (if not provided) is only adjacent layers connected.
+        self.connectivity = self.initialize_connectivity(connectivity)
+        self.initialize_weights()
+
+        # Load training and testing data (assumes CSV with rows of numbers)
+        self.training_data = self.load_data(training_data_file)
+        self.testing_data = self.load_data(testing_data_file)
+
+        # Initialize neuron states (for activation) for each layer.
+        self.states = [np.zeros(n) for n in self.layers]
+        self.prev_states = [np.zeros(n) for n in self.layers]
+        # Initialize carried gradients for feedback propagation (BPTT) – one per layer.
+        self.carry_grads = {l: np.zeros(n) for l, n in enumerate(self.layers)}
+        # Dictionary for weight velocities when using momentum.
+        self.weight_velocities = {}
+
+        # Training hyperparameters
+        self.learning_rate = learning_rate
+        self.optimizer = optimizer  # Options: 'gd' for gradient descent, 'momentum' for GD with momentum.
+        self.momentum = momentum
+
+    def initialize_connectivity(self, connectivity):
+        """
+        If no connectivity is provided, default to sequential (feedforward) – only adjacent layers are connected.
+        """
+        if connectivity is None:
+            conn = np.zeros((self.n_layers, self.n_layers))
+            for i in range(self.n_layers - 1):
+                conn[i][i + 1] = 1  # Connect each layer to the next (feedforward)
+            return conn
+        return np.array(connectivity)
+
+    def initialize_weights(self) -> None:
+        """
+        For every connection (i, j) in the connectivity matrix, initialize a weight matrix.
+        For a connection from layer i (source) to layer j (destination), the weight matrix shape is:
+          (neurons in destination, neurons in source)
+        """
+        for i in range(self.n_layers):
+            for j in range(self.n_layers):
+                if self.connectivity[i, j] == 1:
+                    weight_matrix = np.random.rand(self.layers[j], self.layers[i])
+                    self.weights.set_weights(i, j, weight_matrix)
+
+    def load_data(self, filename: str) -> np.ndarray:
+        """
+        Load a CSV file and return the numerical data as a NumPy array.
+        """
+        try:
+            with open(filename, 'r') as file:
+                reader = csv.reader(file)
+                data_list = []
+                for row in reader:
+                    if row:  # Skip empty rows
+                        try:
+                            data_list.append([float(val) for val in row])
+                        except ValueError:
+                            continue
+                return np.array(data_list, dtype=float)
+        except Exception as e:
+            raise ValueError(f"Error loading data from '{filename}': {e}")
+
+    def save_weights(self, filename: str) -> None:
+        self.weights.save_to_csv(filename)
+
+    def load_weights(self, filename: str) -> None:
+        self.weights.load_from_csv(filename)
+
+    def activate(self, func: str, x: np.ndarray) -> np.ndarray:
+        """
+        Apply the activation function.
+          - 'linear' returns x.
+          - 'tanh' returns np.tanh(x).
+          Extend this mapping as needed.
+        """
+        if func == 'linear':
+            return x
+        elif func == 'tanh':
+            return np.tanh(x)
+        else:
+            raise NotImplementedError(f"Activation function '{func}' is not implemented.")
+
+    def activation_derivative(self, func: str, activated: np.ndarray) -> np.ndarray:
+        """
+        Given the activated value (e.g. the output of tanh(x)), return the derivative.
+          - For linear, the derivative is 1.
+          - For tanh, the derivative is 1 - activated**2.
+        """
+        if func == 'linear':
+            return np.ones_like(activated)
+        elif func == 'tanh':
+            return 1 - np.power(activated, 2)
+        else:
+            raise NotImplementedError(f"Derivative for activation function '{func}' is not implemented.")
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """
+        Forward propagation.
+
+        * Sets the input layer to x.
+        * For each subsequent layer l, the net input is the sum over all incoming connections:
+            - If the connection is feedforward (i < l), then use the current state of layer i.
+            - If the connection is feedback (i >= l), then use the previous state of layer i.
+        * After summing all contributions, the activation function for layer l is applied.
+        * Finally, the output layer activation is returned.
+        """
+        # Backup current states into prev_states for usage in delayed (FB) connections.
+        self.prev_states = [s.copy() for s in self.states]
+        # Set the input layer activation.
+        self.states[0] = x
+        # Process layers 1..n_layers-1.
+        for l in range(1, self.n_layers):
+            net_input = np.zeros(self.layers[l])
+            for i in range(self.n_layers):
+                if self.connectivity[i, l] == 1:
+                    # Choose which state to use based on connection type.
+                    if l > i:  # Feedforward: use the current state.
+                        source = self.states[i]
+                    else:      # Feedback: use the previous state.
+                        source = self.prev_states[i]
+                    W = self.weights.data.get((i, l))
+                    if W is not None:
+                        # Weight matrix W has shape (neurons in layer l, neurons in layer i).
+                        net_input += np.dot(W, source)
+            # Apply the activation function for layer l.
+            self.states[l] = self.activate(self.activation_functions[l], net_input)
+        return self.states[-1]
+
+    def compute_cost(self, yNet: np.ndarray, target: np.ndarray, cost_type: str = 'SE', aggregate: str = 'sum'):
+        """
+        Compute the per-neuron cost and overall cost (loss) while also generating
+        the gradient of the cost with respect to the network output.
+
+        Cost function options (per element):
+          - 'SE' (Squared Error): cost = (target - yNet)**2, gradient = 2*(yNet - target)
+          - 'abs': Absolute Error, cost = abs(target - yNet), gradient = sign(yNet - target)
+          - 'logcosh': cost = log(cosh(target - yNet)), gradient = tanh(yNet - target)
+        
+        Aggregation options for total_cost:
+          - 'sum': total_cost = sum(cost)
+          - 'max': total_cost = max(cost)
+          - 'norm': total_cost = norm(cost)
+        """
+        error = target - yNet
+        if cost_type == 'SE':
+            cost = np.power(error, 2)
+            grad = 2 * (yNet - target)
+        elif cost_type == 'abs':
+            cost = np.abs(error)
+            grad = np.sign(yNet - target)
+        elif cost_type == 'logcosh':
+            cost = np.log(np.cosh(error))
+            grad = np.tanh(yNet - target)
+        else:
+            raise NotImplementedError(f"Cost type '{cost_type}' is not implemented.")
+
+        if aggregate == 'sum':
+            total_cost = np.sum(cost)
+        elif aggregate == 'max':
+            total_cost = np.max(cost)
+        elif aggregate == 'norm':
+            total_cost = np.linalg.norm(cost)
+        else:
+            raise NotImplementedError(f"Aggregation method '{aggregate}' is not implemented.")
+
+        return total_cost, cost, grad
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        """
+        Backpropagation (including delayed feedback using carried gradients).
+
+        Steps:
+          1. Compute the delta (local gradient) for the output layer:
+                delta = (dCost/d_output) * (activation derivative).
+          2. For each hidden (and input) layer, compute:
+                delta[l] = derivative(activation at l) * sum_{m in children} (W[l, m]^T * delta[m]),
+            where for feedforward connections (m > l) we use the current delta,
+            and for feedback connections (m <= l) we incorporate the carried gradient from the previous epoch.
+          3. Save these deltas as the “carried” gradients for next epoch.
+          4. Compute the gradient for each weight with:
+                dW[i,j] = outer(delta[j], source_vector),
+            where the source_vector comes from either the current state (if feedforward) or previous state (if feedback).
+          5. Also compute the gradient of the cost with respect to the input x.
+        """
+        deltas = [None] * self.n_layers
+        # Output layer (layer L) delta:
+        L = self.n_layers - 1
+        deriv = self.activation_derivative(self.activation_functions[L], self.states[L])
+        deltas[L] = grad_output * deriv
+
+        # For layers L-1 down to 0:
+        for l in range(self.n_layers - 2, -1, -1):
+            sum_term = np.zeros(self.layers[l])
+            for m in range(self.n_layers):
+                if self.connectivity[l, m] == 1:
+                    W = self.weights.data.get((l, m))
+                    if W is None:
+                        continue
+                    if m > l:  # For feedforward, use the delta computed in this epoch.
+                        sum_term += np.dot(W.T, deltas[m])
+                    else:      # For feedback, use the carried gradient from the previous epoch.
+                        carry = self.carry_grads[m] if m in self.carry_grads else 0
+                        sum_term += np.dot(W.T, carry)
+            deriv = self.activation_derivative(self.activation_functions[l], self.states[l])
+            deltas[l] = deriv * sum_term
+
+        # Save the current deltas as carried gradients for the next epoch.
+        self.carry_grads = {l: deltas[l] for l in range(self.n_layers)}
+
+        # Compute gradients for weights.
+        self.weight_grads = {}
+        for i in range(self.n_layers):
+            for j in range(self.n_layers):
+                if self.connectivity[i, j] == 1:
+                    # For feedforward links, use the current state; for FB, use the previous state.
+                    if j > i:
+                        source = self.states[i]
+                    else:
+                        source = self.prev_states[i]
+                    grad_w = np.outer(deltas[j], source)
+                    self.weight_grads[(i, j)] = grad_w
+
+        # Compute gradient with respect to input x.
+        grad_input = np.zeros(self.layers[0])
+        for m in range(1, self.n_layers):
+            if self.connectivity[0, m] == 1:
+                W = self.weights.data.get((0, m))
+                if W is not None:
+                    grad_input += np.dot(W.T, deltas[m])
+        return grad_input
+
+    def update_weights(self) -> None:
+        """
+        Update each weight based on its computed gradient.
+          - For 'gd' (gradient descent): W = W - lr * grad.
+          - For 'momentum': a velocity is maintained and updated:
+                v = momentum * v - lr * grad, then W = W + v.
+          Extend this method as needed for other update rules.
+        """
+        for key, grad in self.weight_grads.items():
+            if self.optimizer == "gd":
+                self.weights.data[key] -= self.learning_rate * grad
+            elif self.optimizer == "momentum":
+                if key not in self.weight_velocities:
+                    self.weight_velocities[key] = np.zeros_like(grad)
+                self.weight_velocities[key] = (self.momentum * self.weight_velocities[key] -
+                                               self.learning_rate * grad)
+                self.weights.data[key] += self.weight_velocities[key]
+            else:
+                # Default: simple gradient descent.
+                self.weights.data[key] -= self.learning_rate * grad
+
+    def train(self, n_epochs: int = 1000, display_epoch: int = 100,
+              cost_type: str = 'SE', aggregate: str = 'sum') -> None:
+        """
+        Training loop:
+          1. For each sample, split the record into the input part and target output part.
+          2. Run the forward pass.
+          3. Compute the cost and the output gradient.
+          4. Run backward propagation (this computes weight gradients and gradient with
+             respect to the input—but that latter value can be ignored or used for further analysis).
+          5. Update weights accordingly.
+          6. Optionally, display the average cost per epoch.
+
+        It is assumed that each row in self.training_data is of the form:
+             [x (inputs)..., target (outputs)...]
+        """
+        n_samples = self.training_data.shape[0]
+        for epoch in range(n_epochs):
+            total_epoch_cost = 0.0
+            for sample in self.training_data:
+                # Split sample into input and target parts.
+                x = sample[:self.n_inputs]
+                target = sample[self.n_inputs:self.n_inputs + self.n_outputs]
+
+                # Forward pass.
+                yNet = self.forward(x)
+
+                # Compute cost and gradient at output.
+                total_cost, _, grad_output = self.compute_cost(yNet, target, cost_type, aggregate)
+                total_epoch_cost += total_cost
+
+                # Backward pass.
+                _ = self.backward(grad_output)
+
+                # Update weights.
+                self.update_weights()
+
+            if (epoch + 1) % display_epoch == 0:
+                avg_cost = total_epoch_cost / n_samples
+                print(f"Epoch {epoch+1}/{n_epochs}: Average Cost = {avg_cost}")
+
+    def predict(self, input_data: np.ndarray) -> np.ndarray:
+        """Perform a forward pass to generate a prediction."""
+        return self.forward(input_data)
+
+    def __repr__(self) -> str:
+        return f"NNet(n_layers={self.n_layers}, layers={self.layers}, " \
+               f"activation_functions={self.activation_functions})"
+
+
+
+A Few Notes
+- Forward Propagation:
+In forward(x), we back up the current states into prev_states so that any connection with a “feedback” direction (where the destination layer index is less than or equal to the source layer index) uses the previous activation. This simple mechanism simulates a delay (as in recurrent neural networks) without making the model fully dynamic.
+- Cost and Its Gradient:
+In compute_cost, we provide three cost options (squared error, absolute error, and log‐cosh) and two aggregation methods. The gradient produced (with respect to the network output) is used in the backward pass.
+- Backward Propagation:
+The backward method propagates gradients from the output back to the input. It uses the standard chain rule for feedforward paths and, for FB connections, adds contributions from “carried” gradients from the previous epoch. Weight gradients are computed as outer products, with a slight twist: for a feedforward connection, the current source state is used, whereas for a feedback connection, the previous state (which was used during forward propagation) is used.
+- Update Rule:
+The update_weights method implements a basic gradient descent update as well as a momentum option. For momentum, a velocity term is maintained (in self.weight_velocities).
+- Training Loop:
+The train method loops over all training examples for a number of epochs, performing forward, cost computation, backward, and weight updates. Every display interval, the average cost is printed.
+This code provides a template upon which you can further adapt your network’s learning strategy (for example, by adding more sophisticated BPTT, alternative activation functions, or additional optimization rules). If you have any additional requirements or would like to explore further enhancements (such as mini-batch processing, regularization, or additional optimizers), let’s keep the conversation going!
+
+------------------------------------------------------------------
+Redo the test code
+------------------------------------------------------------------
+
+Below is an updated set of unit tests that cover the extended functionality of your network, including tests for forward propagation, cost computation (with several cost options), backpropagation (and weight‐gradient computation), weight updates (both plain gradient descent and momentum), and even a brief training loop test. You can save this code (for example, as test_nnet.py) and run it with:
+python -m unittest test_nnet.py
+
+
+import unittest
+import numpy as np
+import tempfile
+import os
+import csv
+import io
+import sys
+
+# If your network classes (NNet and Weights) are defined in another module (say, nnet_module),
+# you could import them via:
+# from nnet_module import Weights, NNet
+# For these tests we assume they are in the same module.
+
+class TestWeights(unittest.TestCase):
+    def setUp(self):
+        self.weights = Weights()
+        self.sample_matrix = np.array([0.1, 0.2, 0.3])
+    
+    def test_set_and_get_weights(self):
+        # Test that setting and retrieving weights works using both [] and callable syntax.
+        self.weights.set_weights(0, 1, self.sample_matrix)
+        retrieved = self.weights[0, 1]
+        np.testing.assert_array_equal(retrieved, self.sample_matrix)
+        retrieved_call = self.weights(0, 1)
+        np.testing.assert_array_equal(retrieved_call, self.sample_matrix)
+
+    def test_remove_weights(self):
+        # Test removal of a weight matrix.
+        self.weights.set_weights(0, 1, self.sample_matrix)
+        self.weights.remove_weights(0, 1)
+        with self.assertRaises(KeyError):
+            _ = self.weights[0, 1]
+    
+    def test_nonexistent_weights(self):
+        # Confirm that accessing a nonexistent weight throws a KeyError.
+        with self.assertRaises(KeyError):
+            _ = self.weights(99, 99)
+    
+    def test_save_and_load_csv(self):
+        # Test that saving to a CSV and then re-loading reproduces the weight matrix.
+        self.weights.set_weights(0, 1, self.sample_matrix)
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+', newline='')
+        temp_file.close()
+        try:
+            self.weights.save_to_csv(temp_file.name)
+            new_weights = Weights()
+            new_weights.load_from_csv(temp_file.name)
+            retrieved = new_weights[0, 1]
+            np.testing.assert_array_equal(retrieved, self.sample_matrix)
+        finally:
+            os.unlink(temp_file.name)
+
+class TestNNet(unittest.TestCase):
+    def setUp(self):
+        # Create a simple network with 3 layers:
+        # Input (2 neurons), Hidden (2 neurons), Output (1 neuron).
+        self.nNodes = [2, 2, 1]
+        self.net = NNet(nNodes=self.nNodes)
+        # For sequential connectivity, the default connections are 0->1 and 1->2.
+        # Override with deterministic weights to control the forward pass.
+        # For connection 0->1, set weights as a 2x2 identity.
+        self.net.weights.set_weights(0, 1,
+                                     np.array([[1.0, 0.0],
+                                               [0.0, 1.0]]))
+        # For connection 1->2, set weights as a 1x2 row vector.
+        self.net.weights.set_weights(1, 2,
+                                     np.array([[1.0, 1.0]]))
+    
+    def test_forward(self):
+        # With these weights and activations:
+        # Layer0 is 'linear'; layer1 uses 'tanh'; layer2 is 'linear' (by default).
+        # If we set input x = [1, 0], then:
+        # Hidden net = W(0,1) * x = [1, 0]  → activation = tanh([1, 0]) = [tanh(1), 0].
+        # Output net = W(1,2) * hidden = 1*tanh(1) + 1*0 = tanh(1)
+        # Expected output ≈ tanh(1) (~ 0.7616)
+        x = np.array([1.0, 0.0])
+        yNet = self.net.forward(x)  # This also updates neuron states.
+        expected_hidden = np.tanh(np.array([1.0, 0.0]))  # [tanh(1), 0]
+        expected_output = expected_hidden[0]
+        self.assertAlmostEqual(yNet[0], expected_output, places=4)
+    
+    def test_compute_cost_SE(self):
+        # Test the squared error (SE) cost and gradient.
+        yNet = np.array([0.7616])
+        target = np.array([1.0])
+        # Given error = (target - yNet) = 0.2384, squared error = (0.2384)**2.
+        total_cost, cost, grad = self.net.compute_cost(yNet, target, cost_type='SE', aggregate='sum')
+        self.assertAlmostEqual(total_cost, (0.2384)**2, places=4)
+        np.testing.assert_almost_equal(grad, 2*(yNet - target), decimal=4)
+    
+    def test_compute_cost_abs(self):
+        # Test absolute error cost.
+        yNet = np.array([0.7616])
+        target = np.array([1.0])
+        total_cost, cost, grad = self.net.compute_cost(yNet, target, cost_type='abs', aggregate='sum')
+        self.assertAlmostEqual(total_cost, abs(1.0 - 0.7616), places=4)
+        np.testing.assert_array_equal(grad, np.array([-1.0]))
+    
+    def test_compute_cost_logcosh(self):
+        # Test the logcosh cost option.
+        yNet = np.array([0.7616])
+        target = np.array([1.0])
+        total_cost, cost, grad = self.net.compute_cost(yNet, target, cost_type='logcosh', aggregate='sum')
+        expected_cost = np.log(np.cosh(target - yNet))
+        expected_grad = np.tanh(yNet - target)
+        self.assertAlmostEqual(total_cost, expected_cost, places=4)
+        np.testing.assert_almost_equal(grad, expected_grad, decimal=4)
+    
+    def test_backward_and_weight_grads(self):
+        # Run a forward pass and compute cost, then backpropagate.
+        x = np.array([1.0, 0.0])
+        self.net.forward(x)
+        yNet = self.net.states[-1]
+        target = np.array([1.0])
+        _, _, grad_output = self.net.compute_cost(yNet, target, cost_type='SE', aggregate='sum')
+        grad_input = self.net.backward(grad_output)
+        
+        # Confirm that gradients are computed for our two connections.
+        self.assertIn((0, 1), self.net.weight_grads)
+        self.assertIn((1, 2), self.net.weight_grads)
+        # For connection 0->1, weight gradient shape should be (2,2); for 1->2, shape should be (1,2).
+        self.assertEqual(self.net.weight_grads[(0, 1)].shape, (self.nNodes[1], self.nNodes[0]))
+        self.assertEqual(self.net.weight_grads[(1, 2)].shape, (self.nNodes[2], self.nNodes[1]))
+        # Also, the gradient with respect to the input must match the input layer dimension.
+        self.assertEqual(grad_input.shape, (self.nNodes[0],))
+    
+    def test_update_weights(self):
+        # Perform a forward pass, compute gradients, then update the weights.
+        x = np.array([1.0, 0.0])
+        self.net.forward(x)
+        yNet = self.net.states[-1]
+        target = np.array([1.0])
+        _, _, grad_output = self.net.compute_cost(yNet, target, cost_type='SE', aggregate='sum')
+        self.net.backward(grad_output)
+
+        # Record weights prior to update.
+        old_W01 = self.net.weights.data[(0, 1)].copy()
+        old_W12 = self.net.weights.data[(1, 2)].copy()
+
+        # Use plain gradient descent.
+        self.net.optimizer = "gd"
+        self.net.update_weights()
+
+        new_W01 = self.net.weights.data[(0, 1)]
+        new_W12 = self.net.weights.data[(1, 2)]
+        # Verify that weights have changed.
+        self.assertFalse(np.array_equal(old_W01, new_W01))
+        self.assertFalse(np.array_equal(old_W12, new_W12))
+    
+    def test_train_method(self):
+        # Create a dummy training dataset.
+        # Assume each row is structured as: [input1, input2, target]
+        dummy_training_data = np.array([
+            [1.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0]
+        ])
+        self.net.training_data = dummy_training_data
+
+        # Capture printed output when training.
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        # Run for 2 epochs (display cost on every epoch).
+        self.net.train(n_epochs=2, display_epoch=1, cost_type='SE', aggregate='sum')
+        sys.stdout = sys.__stdout__
+        output = captured_output.getvalue()
+        # Check that cost output is printed for each epoch.
+        self.assertIn("Epoch 1/2", output)
+        self.assertIn("Epoch 2/2", output)
+    
+    def test_repr(self):
+        rep = repr(self.net)
+        # Check that the representation includes the network structure
+        self.assertIn(str(self.nNodes), rep)
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+
+Explanation
+- Weights Tests:
+We verify that setting, retrieving (via both subscript and callable syntax), removing, and CSV-based persistence of weight matrices work as expected.
+- NNet Tests:
+- Forward Propagation:
+By overriding the weights with deterministic values, we verify that a known input produces a predictable output.
+- Cost Functions:
+Separate tests check the squared error (SE), absolute error, and log‑cosh cost modes along with their corresponding gradients.
+- Backward Propagation:
+After a forward pass and cost computation, confirming that the weight gradients are computed and that the gradient with respect to input has the correct shape.
+- Weight Update:
+Checking that after calling update_weights(), the weights have indeed changed (using plain gradient descent).
+- Training Loop:
+A dummy training dataset is provided so that a short training run prints cost output for each epoch.
+- Representation:
+Ensuring that the string representation of the network contains details of its architecture.
+These extensive tests should give you good confidence in your implementation. Feel free to further extend these tests as you add more functionality to your network!
+
+---------------------------------------------------------------------------------------------
+
+Below is an updated script that uses your new neural network class. This script generates a synthetic dataset, sets up the network (imported from your module), assigns the training data (since the updated NN expects a combined [input, target] row), then trains, predicts, and finally plots the results.
+Make sure that your file structure is such that the file containing this script can correctly import your network via
+from genericNNetGPT import NNet
+
+
+You can save the code (for example, as test_nn.py) and then run it.
+
+import numpy as np
+import matplotlib.pyplot as plt
+from genericNNetGPT import NNet
+
+# -----------------------------------------------------------------------------
+# Step 1: Generate the dataset
+# -----------------------------------------------------------------------------
+def generate_data(n_points=1000, noise_std=0.1):
+    """
+    Generate a synthetic dataset.
+
+    For each data point:
+      - x is drawn uniformly from [0, 2*pi]
+      - y is computed as: sin(2*x - 1) * cos(x) plus Gaussian noise.
+      
+    Returns:
+      x as an (n_points, 1) array and y as an (n_points, 1) array.
+    """
+    x = np.random.uniform(0, 2 * np.pi, n_points)
+    y = np.sin(2 * x - 1) * np.cos(x) + np.random.normal(0, noise_std, n_points)
+    return x.reshape(-1, 1), y.reshape(-1, 1)
+
+# Generate training and testing data
+x_train, y_train = generate_data(n_points=1000, noise_std=0.1)
+x_test, y_test   = generate_data(n_points=100, noise_std=0.1)
+
+# -----------------------------------------------------------------------------
+# Step 2: Prepare the training data in the format expected by the network.
+# -----------------------------------------------------------------------------
+# The updated NN expects each sample to be formatted as:
+#    [ input1, input2, ..., target1, target2, ... ]
+# For our case (n_inputs = 1, n_outputs = 1), we horizontally stack x and y.
+training_data = np.hstack([x_train, y_train])
+
+# -----------------------------------------------------------------------------
+# Step 3: Initialize and configure the neural network
+# -----------------------------------------------------------------------------
+n_inputs  = 1
+n_hidden  = [5, 5]  # two hidden layers of 5 neurons each
+n_outputs = 1
+
+# Create an instance of NNet imported from your module.
+myNN = NNet(n_inputs=n_inputs, n_hidden=n_hidden, n_outputs=n_outputs)
+
+# Override the training data loaded from CSV with our generated data.
+myNN.training_data = training_data
+
+# -----------------------------------------------------------------------------
+# Step 4: Train the network
+# -----------------------------------------------------------------------------
+# The train method of the updated NN class uses the learning rate
+# provided at initialization. (In our implementation, train does not accept a learning_rate parameter.)
+n_epochs = 1000
+myNN.train(n_epochs=n_epochs, display_epoch=100, cost_type='SE', aggregate='sum')
+
+# -----------------------------------------------------------------------------
+# Step 5: Predict on the test set
+# -----------------------------------------------------------------------------
+predictions = []
+# Each entry in x_test is an array of shape (1,). We call predict with a 1D array.
+for xi in x_test:
+    # Ensure xi is 1D using ravel (so that its shape is (n_inputs,))
+    pred = myNN.predict(xi.ravel())
+    # predict returns a 1D array (of length n_outputs); extract its first element.
+    predictions.append(pred[0])
+predictions = np.array(predictions)
+
+# -----------------------------------------------------------------------------
+# Step 6: Visualize the results
+# -----------------------------------------------------------------------------
+plt.figure(figsize=(12, 6))
+plt.scatter(x_train, y_train, label='Training Data', color='blue', alpha=0.5)
+plt.scatter(x_test, y_test, label='Testing Data', color='red', alpha=0.5)
+plt.scatter(x_test, predictions, label='Predictions', color='green', marker='x', s=80, alpha=0.7)
+plt.title('Neural Network Predictions vs Actual Data')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.show()
+
+
+
+Explanation
+- Data Generation:
+The generate_data function creates a set of input values taken uniformly from ([0, 2\pi]) and computes their corresponding noisy output values using the function
+[ y = \sin(2x - 1) \times \cos(x) ]
+These arrays are reshaped to be column vectors for compatibility.
+- Formatting Training Data:
+Since your updated NNet class expects each training sample in the format [input, target], we horizontally stack the generated x_train and y_train arrays.
+- Network Initialization:
+The network is created with one input neuron, two hidden layers (each with 5 neurons), and one output neuron. We then override its internal training data with our combined training data.
+- Training:
+The training process is invoked for 1000 epochs with cost display every 100 epochs using the squared error cost (you can choose alternatives like 'abs' or 'logcosh').
+- Prediction and Plotting:
+For each test sample, the network computes a prediction. We then plot the training data, testing data, and the network’s predictions using Matplotlib.
+This script leverages your updated methods (including forward, compute_cost, backward, and update_weights) while also managing the delay needed for feedback paths by updating each neuron's state. Enjoy experimenting and further refining your network!
+
+---------------------------------------------------------------------------------------------------
+

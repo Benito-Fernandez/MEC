@@ -1,0 +1,293 @@
+Grok:
+
+#-------------------------------------------------------------------------#
+You:
+#-------------------------------------------------------------------------#
+Want to create a Nonlinear ARMAX (NARMAX) neural net, with orders n_inputs, n_outputs, n_delayed_inputs, n_delayed_outputs, n_delayed_noise.  The network predicts n_horizon steps.  The hidden layer has n_hidden nodes and the activation function is tanh().  Both hidden and output layers have biases.  The network loss function  and its derivative are given by:     
+def loss(self, e, gain=1, gamma=2):  # Skewed LogCosh Loss function
+        return np.power(gain, np.tanh(gamma * e)) * np.log(np.cosh(e))
+
+    def loss_(self, e, gain=1, gamma=2):  # Skewed LogCosh Loss function gradient (approx)
+        return np.power(gain,np.tanh(gamma*e)) * np.tanh(e).
+and it is sum over the n_horizon steps.  Assume that the training runs for n_epochs (default = 1000) from a CSV file that has as columns time, then n_inputs columns of inputs and n_outputs columns of outputs, from a training_file.  After training, the network topology and weights are saved into a text file with extension '.net', then read back before simulating the network loading from testing_file.  When training, the code stores the loss function as a function of epochs to be plotted later.  It also plots, every n_show steps, in the same plot, the network output, refreshed (erasing the previous network output), the training data points as small dots, and the underlying function (if available).  For the testing phase, it will animate the simulation by displaing the historic data (so far, to t_k), then the forecasting of the next n_horizon steps with confidence intervals, then skip n_skip (default=5) steps, erases the previous forecast and plot the next n_horizon steps.  Both plots are save as pdf or jpeg files, and the simulation results in a CSV file.
+
+#-------------------------------------------------------------------------#
+Grok:
+
+Let's create this nonlinear ARMAX neural network from scratch, considering all the features you've described. Here's a complete Python implementation:
+
+Code Overview:
+Network Architecture:
+
+n_inputs: Number of inputs.
+
+n_outputs: Number of outputs.
+
+n_delayed_inputs: Number of delayed input signals.
+
+n_delayed_outputs: Number of delayed output signals.
+
+n_delayed_noise: Number of delayed noise signals.
+
+n_horizon: Prediction steps ahead.
+
+n_hidden: Number of hidden nodes.
+
+Activation function: tanh() for the hidden layer.
+
+Loss Function:
+
+Skewed LogCosh Loss and its gradient.
+
+Training:
+
+Loads data from a CSV file and trains for n_epochs.
+
+Saves network topology and weights to a .net file.
+
+Testing:
+
+Loads network topology and weights.
+
+Simulates predictions using data from a test file.
+
+Generates animated forecasts with confidence intervals.
+
+Implementation:
+python
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+class ARMAX_NN:
+    def __init__(self, n_inputs, n_outputs, n_delayed_inputs, n_delayed_outputs, 
+                 n_delayed_noise, n_hidden, n_horizon, activation=np.tanh):
+        # Network Parameters
+        self.n_inputs = n_inputs
+        self.n_outputs = n_outputs
+        self.n_delayed_inputs = n_delayed_inputs
+        self.n_delayed_outputs = n_delayed_outputs
+        self.n_delayed_noise = n_delayed_noise
+        self.n_hidden = n_hidden
+        self.n_horizon = n_horizon
+        self.activation = activation
+        
+        # Initialize weights and biases
+        self.weights = {
+            "input_hidden": np.random.randn(n_inputs + n_delayed_inputs + n_delayed_outputs + n_delayed_noise, n_hidden),
+            "hidden_output": np.random.randn(n_hidden, n_outputs * n_horizon),
+        }
+        self.biases = {
+            "hidden": np.random.randn(n_hidden),
+            "output": np.random.randn(n_outputs * n_horizon),
+        }
+    
+    # Activation Function and its Derivative
+    def activation_derivative(self, x):
+        return 1 - np.tanh(x) ** 2
+
+    # Loss Function
+    def loss(self, e, gain=1, gamma=2):
+        return np.power(gain, np.tanh(gamma * e)) * np.log(np.cosh(e))
+
+    def loss_(self, e, gain=1, gamma=2):
+        return np.power(gain, np.tanh(gamma * e)) * np.tanh(e)
+
+    # Forward Pass
+    def forward(self, x):
+        self.hidden = self.activation(np.dot(x, self.weights["input_hidden"]) + self.biases["hidden"])
+        self.output = np.dot(self.hidden, self.weights["hidden_output"]) + self.biases["output"]
+        return self.output
+
+    # Backward Pass
+    def backward(self, x, y, lr, momentum, prev_deltas):
+        error = self.output - y
+        output_grad = self.loss_(error).reshape(-1, self.n_outputs * self.n_horizon)
+        hidden_grad = np.dot(output_grad, self.weights["hidden_output"].T) * self.activation_derivative(self.hidden)
+        
+        deltas = {
+            "hidden_output": momentum * prev_deltas["hidden_output"] - lr * np.dot(self.hidden.T, output_grad),
+            "input_hidden": momentum * prev_deltas["input_hidden"] - lr * np.dot(x.T, hidden_grad),
+            "output_bias": momentum * prev_deltas["output_bias"] - lr * np.sum(output_grad, axis=0),
+            "hidden_bias": momentum * prev_deltas["hidden_bias"] - lr * np.sum(hidden_grad, axis=0),
+        }
+        
+        # Update weights and biases
+        self.weights["hidden_output"] += deltas["hidden_output"]
+        self.weights["input_hidden"] += deltas["input_hidden"]
+        self.biases["output"] += deltas["output_bias"]
+        self.biases["hidden"] += deltas["hidden_bias"]
+        
+        return deltas
+
+    # Save Network Topology and Weights
+    def save_network(self, filename):
+        with open(filename, 'w') as f:
+            f.write(f"Topology: {self.n_inputs}-{self.n_hidden}-{self.n_outputs}\n")
+            f.write(f"Weights: {self.weights}\n")
+            f.write(f"Biases: {self.biases}\n")
+
+    # Load Network Topology and Weights
+    def load_network(self, filename):
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            self.weights = eval(lines[1].split(": ")[1])
+            self.biases = eval(lines[2].split(": ")[1])
+
+# Training Function
+def train_network(model, training_file, n_epochs=1000, n_show=100):
+    # Load data
+    data = pd.read_csv(training_file)
+    time = data.iloc[:, 0]
+    inputs = data.iloc[:, 1:model.n_inputs + 1].values
+    outputs = data.iloc[:, model.n_inputs + 1:].values
+
+    losses = []
+    prev_deltas = {key: np.zeros_like(value) for key, value in model.weights.items()}
+    prev_deltas.update({key: np.zeros_like(value) for key, value in model.biases.items()})
+
+    for epoch in range(1, n_epochs + 1):
+        y_pred = model.forward(inputs)
+        error = y_pred - outputs
+        loss = np.mean(model.loss(error))
+        losses.append(loss)
+
+        model.backward(inputs, outputs, lr=0.01, momentum=0.9, prev_deltas=prev_deltas)
+
+        # Plot every n_show epochs
+        if epoch % n_show == 0:
+            plt.figure()
+            plt.plot(time, outputs.flatten(), 'k.', label="Training Data")
+            plt.plot(time, y_pred.flatten(), 'r', label="Predicted Outputs")
+            plt.title(f"Epoch {epoch}")
+            plt.legend()
+            plt.show()
+
+    # Save loss plot
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    plt.figure()
+    plt.plot(range(1, n_epochs + 1), losses, label="Loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Loss vs. Epochs")
+    plt.legend()
+    plt.savefig(f"Loss_Plot@{timestamp}.pdf")
+    plt.savefig(f"Loss_Plot@{timestamp}.jpeg")
+
+    return losses
+
+# Testing Function
+def test_network(model, testing_file, n_horizon, n_skip=5):
+    # Load test data
+    data = pd.read_csv(testing_file)
+    time = data.iloc[:, 0]
+    inputs = data.iloc[:, 1:model.n_inputs + 1].values
+    outputs = data.iloc[:, model.n_inputs + 1:].values
+
+    predictions = []
+    for t_k in range(0, len(inputs) - n_horizon, n_skip):
+        input_data = inputs[t_k:t_k + n_horizon]
+        forecast = model.forward(input_data)
+        predictions.append(forecast)
+
+        plt.figure()
+        plt.plot(time[:t_k + n_horizon], outputs[:t_k + n_horizon].flatten(), 'k.', label="Historic Data")
+        plt.plot(time[t_k:t_k + n_horizon], forecast.flatten(), 'r', label="Forecast")
+        plt.fill_between(time[t_k:t_k + n_horizon], forecast.flatten() - 0.1, forecast.flatten() + 0.1, alpha=0.2)
+        plt.title(f"Forecast at t = {t_k}")
+        plt.legend()
+        plt.show()
+
+    # Save predictions as CSV
+    pd.DataFrame(predictions).to_csv("Simulation_Results.csv", index=False)
+
+# Example Usage
+if __name__ == "__main__":
+    model = ARMAX_NN(n_inputs=2, n_outputs=1, n_delayed_inputs=1, n_delayed_outputs=1, 
+                     n_delayed_noise=1, n_hidden=10, n_horizon=3)
+    train_network(model, "training_file.csv")
+    model.save_network("network.net")
+    model.load_network("network.net")
+    test_network(model, "testing_file.csv", n_horizon=3)
+Explanation:
+Training: Reads training_file.csv, trains the ARMAX neural network, saves loss plots, and visualizes training outputs.
+
+Testing: Simulates predictions, animates forecasts with confidence intervals, and saves results to a CSV file.
+
+Let me know if you’d like me to refine specific parts or add new features!
+
+#-------------------------------------------------------------------------#
+You:
+
+#-------------------------------------------------------------------------#
+Create a training_file.csv and testing_file.csv for a second order (mass-spring-damper) system with input 5 steps force for 50 seconds, that randomly chage every 10 seconds, between +/- 5, with sampling time, dt=0.01 seconds, 0.2 sensor noise for position and velocity as outputs.  Write the code to generate the test files and then run the ARMAX
+#-------------------------------------------------------------------------#
+Grok:
+
+
+#-------------------------------------------------------------------------#
+You:
+#-------------------------------------------------------------------------#
+
+#-------------------------------------------------------------------------#
+Co-Pilot:
+
+#-------------------------------------------------------------------------#
+You: 
+Lets create a five layer recurrent neural network class, called DyNet, to learn nonlinear dynamic systems (NLS). The NLS has input vector, u(k) of dimension n_inputs (default=1), output vector, y(k) of dimension n_outputs (default=1), and state vector, x(k) of dimension n_states (default=2).
+We are going to model NLS with state equations:
+x(k+1) = f(x(k),u(k),w(k)); 
+y(k) = h(x(k),u(k),v(k)), 
+where w(k) is a process noise vector of dimension n_process_noise (default=n_states), and v(k) is a sensor noise vector of dimension n_sensor_noise (default=n_outputs).  
+
+The DyNet topology is as follows: 
+
+The first layer has n_inputs+n_states+nodes+n_process_noise nodes with 'linear' activation function.  The first n_inputs nodes take the DyNet inputs, u, whether from a data file for training, training_file (default training_file='training_data.csv') in CSV format or from a sream provided to a simulate() method as a Pandas dataframe.  The next n_states nodes are fed back from the third layer with time delay (more later).  The last n_process_noise nodes represent the process noise, w(k), that is generated when needed, from a Gaussian Normal distribution with zero meand and process_stddev standard deviation (default = 0.02).
+
+The training_file should have as first colum the time (k), the following n_inputs columns are the inputs, u, from u[1], u[2], ..., u[n_inputs], the next n_outputs columns are the putputs, y, from y[1], y[2], ..., y[n_outputs].  In theory, there might be additional n_states columns that are the states, x, from x[1], x[2], ..., x[n_states], if they are available-which is not the case in general.
+
+The second layer has n_hidden_states nodes (default=5), that may have biases (default is hidden_state_bias=True) and the default activation function is 'tanh()',  Both biases and activation functions should be selectable as well.  
+
+The third layer has n_states+n_sensor_noise nodes, that have 'linear' activation function and have biases as default.  The third layer n_states nodes are connected to the fourth layer and are also fed back to the n_states nodes in the input layer, with a time delay.  Basically, these first three layers can realize the state dynamics: x(k+1) = f(x(k),u(k),w(k)).  The rest of the third layer nodes, n_sensor_noise, represent the sensor noise, v(k), have no inputs and only connect to the fourth layer.  Their values are generated from a Gaussian Normal distribution with zero meand and sensors_stddev standard deviation (default = 0.01).  The fed back links from the third n_states nodes to the first layer n_states nodes, have a value of '1', are fix (they don't adapt) although you can backpropagate through them, and the connect 1:1, not fully connected.  That is the first only to the first, the second only to the second, and so on.
+
+The fourth and fifth layers approximate the sensors.  The fourth layer takes inputs from the third layer, including the states, x(k+1), sensor noise, v(k+1) and also from the first layer n_inputs nodes, u(k) with a delay, since the third layer states are x(k+1).  The fourth layer has n_hidden_sensors nodes (default=3) with default activation function 'tanh()' and biases as default.
+
+The last layer has n_outputs nodes, have 'linear' activation function and have biases (as default).  These nodes represent the outputs, y(k) and are the network outputs.
+
+The network loss function and its derivative, for a given data point, are given by the following Python code:     
+def loss(self, e, gain=1, gamma=2):  # Skewed LogCosh Loss function
+        return np.power(gain, np.tanh(gamma * e)) * np.log(np.cosh(e))
+def loss_(self, e, gain=1, gamma=2):  # Skewed LogCosh Loss function gradient (approx)
+        return np.power(gain,np.tanh(gamma*e)) * np.tanh(e).
+The total_loss is the sum over the training set. Assume that the training runs for n_epochs (default = 1000) from a CSV file (default training_file='training_data.csv') as described above. THere might also be other training termination conditions other than n_epochs, like the total_loss is below a threshold, loss_termination (default = 1), the gradient of the total_loss is less that a percentage of it, gradient_termination (default =0.01), etc.  Future users may add other activation functions, loss functions, or termination conditions (functions).
+For termination, DyNet may also test the network during training with testing_file (default training_file='testing_data.csv') in CSV format.  The network should save the total_loss for the training data, and the testing data, to be plotted versus the epoch.  Animation is preferred, and could be an option for the training() method, animate_learning (default=True).  These data points should also be stored in a CSV file (default 'learning_loss.csv') and the graph stored as .pdf or .jpeg format, default ('learning_loss.jpg').
+
+After training, the network topology and weights are saved into a text file with extension '.net', (default DyNet_model='dynet_model.net') using a save_network() method.  It should also store the internal states of the network, in case the user wishes to continue simulation.
+
+The class should also have a loading_network() method to load the network, DyNet, from a DyNet_model file.
+
+The class should also have a predict() methods, to be used to predict n_horizon (default=5) steps ahead of the current time step, k.  
+#-------------------------------------------------------------------------#
+
+#-------------------------------------------------------------------------#
+Grok:
+
+#-------------------------------------------------------------------------#
+You:
+#-------------------------------------------------------------------------#
+
+#-------------------------------------------------------------------------#
+Grok:
+
+#-------------------------------------------------------------------------#
+You:
+#-------------------------------------------------------------------------#
+
+#-------------------------------------------------------------------------#
+Grok:
+
+#-------------------------------------------------------------------------#
+You:
+#-------------------------------------------------------------------------#
+
